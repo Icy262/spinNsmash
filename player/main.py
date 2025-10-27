@@ -1,6 +1,7 @@
 import socket
 import threading
 import pygame
+from common.player_brief import PlayerBrief
 from common.network_requests import NetworkObjectTypes, GetGames
 from common.client_connection import ClientConnection
 
@@ -16,9 +17,20 @@ def gen_background():
 	for y in range(0, height//grid_spacing + 1): #same as above
 		pygame.draw.line(background, (0, 0, 0), (0, y*grid_spacing), (width + grid_spacing, y*grid_spacing)) #same as vertical lines, but swapped
 
-player_x, player_y = 0, 0 #TEST CODE ONLY, REMOVE LATER
+def render_player(entity):
+	#TODO: check if player onscreen
+	pygame.draw.circle(screen, (0, 255, 0), (entity.dx, entity.dy), 20, 0) #draw a green circle on the screen centered on the entity's location with a radius of 20 that is solid
 
 pygame.init()
+
+#TEST CODE, REMOVE LATER
+player = PlayerBrief()
+player.from_data(0, 0, 100, 100)
+
+player_max_speed = 150
+
+bounds_x = 3000
+bounds_y = 3000
 
 display_info = pygame.display.Info()
 
@@ -29,18 +41,40 @@ screen = pygame.display.set_mode((display_info.current_w, display_info.current_h
 grid_spacing = 50 #height and width of each grid square
 gen_background()
 
+clock = pygame.time.Clock()
+framerate = 60
+
 quit = False
 while not quit:
-	screen.blit(background, (0, 0), pygame.Rect(player_x%grid_spacing, player_y%grid_spacing, screen.get_size()[0], screen.get_size()[1])) #copy the background onto the screen, starting in the top left. Mod the player's position by grid_spacing to find where the player is relative to the corner of a grid square, and copy the background starting from that point onto the screen. copy a region of the background equivalent to the dimensions of the screen.
+	screen.blit(background, (0, 0), pygame.Rect(player.dx%grid_spacing, player.dy%grid_spacing, screen.get_size()[0], screen.get_size()[1])) #copy the background onto the screen, starting in the top left. Mod the player's position by grid_spacing to find where the player is relative to the corner of a grid square, and copy the background starting from that point onto the screen. copy a region of the background equivalent to the dimensions of the screen.
 
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			quit = True
-		if event.type == pygame.VIDEORESIZE:
+		elif event.type == pygame.VIDEORESIZE:
 			new_dimensions = event.size #a VIDEORESIZE event has a size attribute which contains the current dimensions of the window
 			screen = pygame.display.set_mode(new_dimensions, display_flags) #recreate the monitor surface with the new window dimensions and preserving the flags
-			gen_background()
+			gen_background() #regen a new background for the new screen size
+	
+	keystate = pygame.key.get_pressed() #get the currently held keys
+	if keystate[pygame.K_w]: #if the key is pressed, accelerate the player in that direction
+		player.vy -= 0.3
+	elif keystate[pygame.K_a]:
+		player.vx -= 0.3
+	elif keystate[pygame.K_s]:
+		player.vy += 0.3
+	elif keystate[pygame.K_d]:
+		player.vx += 0.3
 
-	pygame.display.flip()
+	player.vx -= player.vx*0.05 #slowly slow down the player and limit top speed
+	player.vy -= player.vy*0.05 #same
+
+	player.dx += player.vx #move the player by velocity units every tick
+	player.dy += player.vy
+
+	render_player(player) #render the player
+	pygame.display.flip() #update the screen
+
+	clock.tick(60) #Limit the game to 60 fps, also limit physics logic
 
 pygame.quit()
