@@ -16,10 +16,28 @@ def gen_background():
 		pygame.draw.line(background, (0, 0, 0), (x*grid_spacing, 0), (x*grid_spacing, height + grid_spacing)) #draw the line on background, (0, 0, 0) is the colour code for black, start the line at grid_spacing pixels times the line number, and the top of the surface, end the line at the same horizontal, but bottom of the surface
 	for y in range(0, height//grid_spacing + 1): #same as above
 		pygame.draw.line(background, (0, 0, 0), (0, y*grid_spacing), (width + grid_spacing, y*grid_spacing)) #same as vertical lines, but swapped
+	#draw a border of black lines
+	pygame.draw.line(background, (0, 0, 0), (0,0), (width, 0), 5)
+	pygame.draw.line(background, (0, 0, 0), (0,0), (0, height), 5)
+	pygame.draw.line(background, (0, 0, 0), (width,0), (width, height), 5)
+	pygame.draw.line(background, (0, 0, 0), (0,height), (width, height), 5)
+
+def clamp(val, min, max):
+	"""
+	Given a numeric value, and minimum and maximum values, will restrict the value to within the range of min to max and return. Min should be less than max or nothing will happen
+	"""
+	if val < min: val = min
+	elif val > max: val = max
+	return val
 
 def render_player(entity):
-	#TODO: check if player onscreen
-	pygame.draw.circle(screen, (0, 255, 0), (entity.dx, entity.dy), 20, 0) #draw a green circle on the screen centered on the entity's location with a radius of 20 that is solid
+	#attempting to draw a player that is offscreen will not cause issues, so we don't need to check if they are onscreen
+	corner_of_screen_x = player.dx - screen.get_size()[0]/2 #the coordinate value on the map of the point at the corner of the screen
+	corner_of_screen_y = player.dy - screen.get_size()[1]/2 #same
+	#clamp the viewable area of the screen to the boundaries of the map by restricting the corner of the screen to within 0 - one screen width from the edge
+	corner_of_screen_x = clamp(corner_of_screen_x, 0, bounds_x - screen.get_size()[0])
+	corner_of_screen_y = clamp(corner_of_screen_y, 0, bounds_y - screen.get_size()[1])
+	pygame.draw.circle(screen, (0, 255, 0), (entity.dx - corner_of_screen_x, entity.dy - corner_of_screen_y), 20, 0) #draw a solid green circle on the screen with a radius of 20 centered on the entity's location relative to the player
 
 pygame.init()
 
@@ -46,7 +64,10 @@ framerate = 60
 
 quit = False
 while not quit:
-	screen.blit(background, (0, 0), pygame.Rect(player.dx%grid_spacing, player.dy%grid_spacing, screen.get_size()[0], screen.get_size()[1])) #copy the background onto the screen, starting in the top left. Mod the player's position by grid_spacing to find where the player is relative to the corner of a grid square, and copy the background starting from that point onto the screen. copy a region of the background equivalent to the dimensions of the screen.
+	#TODO: Let the grids align with the map bounds
+	background_x_orgin = clamp(player.dx, screen.get_size()[0]/2, bounds_x - screen.get_size()[0]/2)%grid_spacing
+	background_y_orgin = clamp(player.dy, screen.get_size()[1]/2, bounds_y - screen.get_size()[1]/2)%grid_spacing
+	screen.blit(background, (0, 0), pygame.Rect(background_x_orgin, background_y_orgin, screen.get_size()[0], screen.get_size()[1]))
 
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
