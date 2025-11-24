@@ -23,6 +23,7 @@ class GameLobby(PlayerContainer):
 						response.from_data(games) #populate the GameList object with the running games data
 						player.network_connection.send(response.to_bytes()) #convert the GameList to bytes and send it back to the player
 					elif get_type(request) == NetworkObjectTypes['join_game'].value: #if a join_game request,
+						#TODO: add error handling for illegal join requests
 						#transfer the player to the game by removing from our list and adding it to the game's list
 						self.transfer_player(player, games[JoinGame().from_bytes(request).game_id])
 					else: #unrecognized status code
