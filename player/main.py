@@ -2,8 +2,9 @@ import socket
 import threading
 import pygame
 from common.player_brief import PlayerBrief
-from common.network_requests import NetworkObjectTypes, GetGames
-from common.client_connection import ClientConnection
+from common.network_requests import NetworkObjectTypes, GetGames, JoinGame, PlayerMove, ClientUpdate
+from common.network_connection import NetworkConnection
+from common.game_entities import GameEntity
 
 def gen_background():
 	global background #make the background global so that it can be accessed everywhere
@@ -41,61 +42,112 @@ def render_player(entity):
 
 pygame.init()
 
-#TEST CODE, REMOVE LATER
-player = PlayerBrief()
-player.from_data(0, 0, 100, 100)
-
-player_max_speed = 150
-
-bounds_x = 3000
-bounds_y = 3000
-
-display_info = pygame.display.Info()
-
 display_flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE #flags to use when seting the display mode
 pygame.display.set_caption("spinNsmash")
+display_info = pygame.display.Info()
 screen = pygame.display.set_mode((display_info.current_w, display_info.current_h), display_flags) #create a monitor surface the size of the display, using the display flags
-
-grid_spacing = 50 #height and width of each grid square
-gen_background()
-
 clock = pygame.time.Clock()
-framerate = 60
 
-quit = False
-while not quit:
-	#TODO: Let the grids align with the map bounds
-	background_x_orgin = clamp(player.dx, screen.get_size()[0]/2, bounds_x - screen.get_size()[0]/2)%grid_spacing
-	background_y_orgin = clamp(player.dy, screen.get_size()[1]/2, bounds_y - screen.get_size()[1]/2)%grid_spacing
-	screen.blit(background, (0, 0), pygame.Rect(background_x_orgin, background_y_orgin, screen.get_size()[0], screen.get_size()[1]))
-
-	for event in pygame.event.get():
-		if event.type == pygame.QUIT:
-			quit = True
-		elif event.type == pygame.VIDEORESIZE:
-			new_dimensions = event.size #a VIDEORESIZE event has a size attribute which contains the current dimensions of the window
-			screen = pygame.display.set_mode(new_dimensions, display_flags) #recreate the monitor surface with the new window dimensions and preserving the flags
-			gen_background() #regen a new background for the new screen size
+while pygame.QUIT not in pygame.event.get():
+	#main menu
+	title_text = pygame.font.SysFont("Arial", 120).render("spinNsmash", True, (255, 255, 0))
+	start_prompt = pygame.font.SysFont("Arial", 72).render("press ENTER to start", True, (0, 255, 0))
+	screen.fill((0,0,0))
+	screen.blit(title_text, (display_info.current_w//2 - title_text.get_width()//2, display_info.current_h//3 - title_text.get_height()//2))
+	screen.blit(start_prompt, (display_info.current_w//2 - title_text.get_width()//2, display_info.current_h//2 - title_text.get_height()//2))
 	
-	keystate = pygame.key.get_pressed() #get the currently held keys
-	if keystate[pygame.K_w]: #if the key is pressed, accelerate the player in that direction
-		player.vy -= 0.3
-	elif keystate[pygame.K_a]:
-		player.vx -= 0.3
-	elif keystate[pygame.K_s]:
-		player.vy += 0.3
-	elif keystate[pygame.K_d]:
-		player.vx += 0.3
+	start = False
+	while not start:
+		pygame.display.flip()
+		clock.tick(60) #Limit the game to 60 fps, also limit physics logic
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				exit()
+			elif event.type == pygame.VIDEORESIZE:
+				new_dimensions = event.size #a VIDEORESIZE event has a size attribute which contains the current dimensions of the window
+				screen = pygame.display.set_mode(new_dimensions, display_flags) #recreate the monitor surface with the new window dimensions and preserving the flags
+				gen_background() #regen a new background for the new screen size
+		start = pygame.key.get_pressed()[pygame.K_RETURN]
+	
+	#join game menu
 
-	player.vx -= player.vx*0.05 #slowly slow down the player and limit top speed
-	player.vy -= player.vy*0.05 #same
+	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server.connect(("127.0.0.1", 4004))
+	server = NetworkConnection(server)
+	game_request = GetGames()
+	game_request.from_data()
+	server.send(game_request.to_bytes())
+	threading.Thread(target = server.recieve).start()
 
-	player.dx += player.vx #move the player by velocity units every tick
-	player.dy += player.vy
+	recieved_list = False
+	while not recieved_list:
+		list = server.get_next_request()
+		if list != None:
+			recieved_list = True
+	
+	#TEMP CODE, REMOVE LATER
+	server.send(JoinGame().from_data(0).to_bytes()) #TODO: add game selecter menu
+	bounds_x = 3000
+	bounds_y = 3000
 
-	render_player(player) #render the player
-	pygame.display.flip() #update the screen
+	#game
 
-	clock.tick(60) #Limit the game to 60 fps, also limit physics logic
+	#TODO: remove, test code
+	player_max_speed = 150
+
+	grid_spacing = 50 #height and width of each grid square
+	gen_background()
+	player = GameEntity()
+	player.from_data(0,0,0,0) #TODO: REMOVE, TEST CODE
+	
+	game_entities = [] #holds all the entities existing on the game map
+
+	quit = False
+	while not quit:
+		while True: #Python is an abomination. I just want a do-while.
+			recieved = server.get_next_request()
+			if recieved == None:
+				break
+			elif type(recieved) == ClientUpdate:
+				game_entities = client_update.game_objects
+				player = game_entities.pop(0) #the first element is our player, so remove it from the list and put it in the player value
+
+		#TODO: Let the grids align with the map bounds
+		background_x_orgin = clamp(player.dx, screen.get_size()[0]/2, bounds_x - screen.get_size()[0]/2)%grid_spacing
+		background_y_orgin = clamp(player.dy, screen.get_size()[1]/2, bounds_y - screen.get_size()[1]/2)%grid_spacing
+		screen.blit(background, (0, 0), pygame.Rect(background_x_orgin, background_y_orgin, screen.get_size()[0], screen.get_size()[1]))
+
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				quit = True
+			elif event.type == pygame.VIDEORESIZE:
+				new_dimensions = event.size #a VIDEORESIZE event has a size attribute which contains the current dimensions of the window
+				screen = pygame.display.set_mode(new_dimensions, display_flags) #recreate the monitor surface with the new window dimensions and preserving the flags
+				gen_background() #regen a new background for the new screen size
+		
+		keystate = pygame.key.get_pressed() #get the currently held keys
+		if keystate[pygame.K_w]: #if the key is pressed, accelerate the player in that direction
+			player.vy -= 0.3
+		elif keystate[pygame.K_a]:
+			player.vx -= 0.3
+		elif keystate[pygame.K_s]:
+			player.vy += 0.3
+		elif keystate[pygame.K_d]:
+			player.vx += 0.3
+
+		player.vx -= player.vx*0.05 #slowly slow down the player and limit top speed
+		player.vy -= player.vy*0.05 #same
+
+		player.dx += player.vx #move the player by velocity units every tick
+		player.dy += player.vy
+
+		render_player(player) #render the player
+		pygame.display.flip() #update the screen
+
+		movement = PlayerMove()
+		movement.from_data((player.dx, player.dy, player.vx, player.vy))
+		server.send(movement.to_bytes())
+
+		clock.tick(60) #Limit the game to 60 fps, also limit physics logic
 
 pygame.quit()
