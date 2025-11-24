@@ -1,12 +1,14 @@
 from server.player_container import PlayerContainer
 
 class Game(PlayerContainer):
-	def __init__(self, name, num_bots, size_x, size_y):
+	def __init__(self, num_bots, size_x, size_y):
 		"""
 		Initializes the game state.
 		"""
-		#TODO: Implement
-		self.name = name
+		self.num_bots = num_bots #TODO: Unimplimented
+		self.size_x = size_x
+		self.size_y =size_y
+		super().__init__()
 
 	def add_player(self, player):
 		"""
@@ -14,27 +16,16 @@ class Game(PlayerContainer):
 		"""
 		self.connected_players.append(player) #add the player to the list of players
 		#initialize the player with some location and state
-
-class GameDescriptor:
-	def from_data(self, game):
+	
+	def run(self):
 		"""
-		Creates a GameDescriptor of a Game.
+		Processes the main game loop of the game
 		"""
-		self.name = game.name
-		self.player_count = len(game.players) #player count is equal to the number of players in the player list
-
-	def from_bytes(self, as_bytes):
-		"""
-		Creates a GameDescriptor from its bytes representation
-		"""
-		self.name = as_bytes[:-1].decode('UTF-8') #interprets everything up to the second last byte as the name and decodes it as UTF-8 text
-		self.player_count = as_bytes[-1].from_bytes() #last byte is the number of players
-
-	def to_bytes(self):
-		"""
-		Converts a GameDescriptor to its bytes representation for passing over the network
-		"""
-		as_bytes = bytearray() #to hold the bytes representation
-		as_bytes.extend(name.encode('UTF-8')) #encode the name as UTF-8, and append
-		as_bytes.extend(player_count.as_bytes(1)) #Convert the number of players to a 1 byte int and append
-		return as_bytes #return the bytes representation
+		while True: #repeat for the duration of the program
+			for player in self.connected_players: #loop through the connected players and check for any new messages.
+				request = player.network_connection.get_next_request() #get the next request from this player, if there is any, if not it'll be None
+				if(request != None): #if there is some new request,
+					#considered using match case, but python sucks and doesn't support .value					
+					if get_type(request) == NetworkObjectTypes['player_move'].value: #if a get_games request,
+					else: #unrecognized status code
+						print("ERROR: STATUS CODE NOT RECOGNIZED", get_type(request)) #TODO: replace with actual error handling
