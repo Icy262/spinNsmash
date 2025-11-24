@@ -1,7 +1,7 @@
 import threading
 from server.player_container import PlayerContainer
-from common.network_requests import NetworkObjectTypes, GameList, GetGames, get_type
-from common import client_connection
+from common.network_requests import NetworkObjectTypes, GameList, GetGames, get_type, JoinGame
+from common import network_connection
 
 class GameLobby(PlayerContainer):
 	"""
@@ -13,14 +13,17 @@ class GameLobby(PlayerContainer):
 		Should be run in a separate thread. Will loop though the connected players and respond to any requests they have. Acts as a game selector. Should be passed the main list of running games
 		"""
 		while True: #repeat for the duration of the program
-			for i in range(len(self.connected_players)): #loop through the connected players and check for any new messages
-				request = self.connected_players[i].client_connection.get_next_request() #get the next request from this player, if there is any, if not it'll be None
+			for player in self.connected_players: #loop through the connected players and check for any new messages.
+				request = player.network_connection.get_next_request() #get the next request from this player, if there is any, if not it'll be None
 				if(request != None): #if there is some new request,
 					#considered using match case, but python sucks and doesn't support .value					
 					if get_type(request) == NetworkObjectTypes['get_games'].value: #if a get_games request,
 						#respond to the request by sending a GameList
 						response = GameList() #generate a GameList from the list of running games
 						response.from_data(games) #populate the GameList object with the running games data
-						self.connected_players[i].client_connection.send(response.to_bytes()) #convert the GameList to bytes and send it back to the player
+						player.network_connection.send(response.to_bytes()) #convert the GameList to bytes and send it back to the player
+					elif get_type(request) == NetworkObjectTypes['join_game'].value: #if a join_game request,
+						#transfer the player to the game by removing from our list and adding it to the game's list
+						self.transfer_player(player, games[JoinGame().from_bytes(request).game_id])
 					else: #unrecognized status code
-						print("STATUS CODE NOT RECOGNIZED") #TODO: replace with actual error handling
+						print("ERROR: STATUS CODE NOT RECOGNIZED", get_type(request)) #TODO: replace with actual error handling
