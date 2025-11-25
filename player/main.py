@@ -2,9 +2,9 @@ import socket
 import threading
 import pygame
 from common.player_brief import PlayerBrief
-from common.network_requests import NetworkObjectTypes, GetGames, JoinGame, PlayerMove, ClientUpdate
+from common.network_messages import NetworkObjectTypes, GetGames, JoinGame, PlayerMove, ClientUpdate, get_type
 from common.network_connection import NetworkConnection
-from common.game_entities import GameEntity
+from common.game_entities import GameEntity, PlayerEntity, BulletEntity
 
 def gen_background():
 	global background #make the background global so that it can be accessed everywhere
@@ -31,14 +31,14 @@ def clamp(val, min, max):
 	elif val > max: val = max
 	return val
 
-def render_player(entity):
-	#attempting to draw a player that is offscreen will not cause issues, so we don't need to check if they are onscreen
+def render_entity(entity):
+	#attempting to draw an entity that is offscreen will not cause issues, so we don't need to check if they are onscreen
 	corner_of_screen_x = player.dx - screen.get_size()[0]/2 #the coordinate value on the map of the point at the corner of the screen
 	corner_of_screen_y = player.dy - screen.get_size()[1]/2 #same
-	#clamp the viewable area of the screen to the boundaries of the map by restricting the corner of the screen to within 0 - one screen width from the edge
+	#clamp the viewable area of the screen to the boundaries of the map by restricting the corner of the screen to between the top left corner of the map and one screen width/height from the other corners respectively
 	corner_of_screen_x = clamp(corner_of_screen_x, 0, bounds_x - screen.get_size()[0])
 	corner_of_screen_y = clamp(corner_of_screen_y, 0, bounds_y - screen.get_size()[1])
-	pygame.draw.circle(screen, (0, 255, 0), (entity.dx - corner_of_screen_x, entity.dy - corner_of_screen_y), 20, 0) #draw a solid green circle on the screen with a radius of 20 centered on the entity's location relative to the player
+	pygame.draw.circle(screen, entity.colour, (entity.dx - corner_of_screen_x, entity.dy - corner_of_screen_y), entity.size, 0) #draw a solid green circle on the screen with a radius of 20 centered on the entity's location relative to the player
 
 pygame.init()
 
@@ -74,14 +74,14 @@ while pygame.QUIT not in pygame.event.get():
 	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	server.connect(("127.0.0.1", 4004))
 	server = NetworkConnection(server)
-	game_request = GetGames()
-	game_request.from_data()
-	server.send(game_request.to_bytes())
+	game_message = GetGames()
+	game_message.from_data()
+	server.send(game_message.to_bytes())
 	threading.Thread(target = server.recieve).start()
 
 	recieved_list = False
 	while not recieved_list:
-		list = server.get_next_request()
+		list = server.get_next_message()
 		if list != None:
 			recieved_list = True
 	
@@ -97,20 +97,22 @@ while pygame.QUIT not in pygame.event.get():
 
 	grid_spacing = 50 #height and width of each grid square
 	gen_background()
-	player = GameEntity()
-	player.from_data(0,0,0,0) #TODO: REMOVE, TEST CODE
+	player = PlayerEntity().from_data(0,0,0,0,0,0) #create a player and init to garbage variables until we recieve proper data from the server
 	
-	game_entities = [] #holds all the entities existing on the game map
+	game_objects = [] #holds all the entities existing on the game map
 
 	quit = False
 	while not quit:
 		while True: #Python is an abomination. I just want a do-while.
-			recieved = server.get_next_request()
-			if recieved == None:
+			message = server.get_next_message()
+			if message == None:
 				break
-			elif type(recieved) == ClientUpdate:
-				game_entities = client_update.game_objects
-				player = game_entities.pop(0) #the first element is our player, so remove it from the list and put it in the player value
+			elif get_type(message) == NetworkObjectTypes["client_update"].value:
+				game_objects = ClientUpdate().from_bytes(message).game_objects
+				if ClientUpdate().from_bytes(message).updated: player = game_objects.pop(0) #the first element is our player, so remove it from the list and put it in the player value
+				else: game_objects.pop(0)
+			else: #unrecognized status code
+				print("ERROR: STATUS CODE NOT RECOGNIZED", get_type(message)) #TODO: replace with actual error handling
 
 		#TODO: Let the grids align with the map bounds
 		background_x_orgin = clamp(player.dx, screen.get_size()[0]/2, bounds_x - screen.get_size()[0]/2)%grid_spacing
@@ -126,13 +128,13 @@ while pygame.QUIT not in pygame.event.get():
 				gen_background() #regen a new background for the new screen size
 		
 		keystate = pygame.key.get_pressed() #get the currently held keys
-		if keystate[pygame.K_w]: #if the key is pressed, accelerate the player in that direction
+		if keystate[pygame.K_w]: #if the key is pressed, accelerate the player in that direction. must all be if, not elif because if not it only accepts one input at a time, preventing sustainable diagonal movement
 			player.vy -= 0.3
-		elif keystate[pygame.K_a]:
+		if keystate[pygame.K_a]:
 			player.vx -= 0.3
-		elif keystate[pygame.K_s]:
+		if keystate[pygame.K_s]:
 			player.vy += 0.3
-		elif keystate[pygame.K_d]:
+		if keystate[pygame.K_d]:
 			player.vx += 0.3
 
 		player.vx -= player.vx*0.05 #slowly slow down the player and limit top speed
@@ -141,12 +143,13 @@ while pygame.QUIT not in pygame.event.get():
 		player.dx += player.vx #move the player by velocity units every tick
 		player.dy += player.vy
 
-		render_player(player) #render the player
+		for entity in game_objects: #render the other entities
+			render_entity(entity)
+		render_entity(player) #render the player
+
 		pygame.display.flip() #update the screen
 
-		movement = PlayerMove()
-		movement.from_data((player.dx, player.dy, player.vx, player.vy))
-		server.send(movement.to_bytes())
+		server.send(PlayerMove().from_data(player.dx, player.dy, player.vx, player.vy).to_bytes())
 
 		clock.tick(60) #Limit the game to 60 fps, also limit physics logic
 
