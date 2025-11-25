@@ -17,7 +17,7 @@ network_connection_listener.listen() #set the socket to listen mode
 
 game_lobby = GameLobby() #create a game lobby to pass players into once they connect
 games = [] #a list of running games
-games.append(Game(3000, 3000, 0)) #new game
+games.append(Game(None, 3000, 3000)) #new game
 
 threading.Thread(target = game_lobby.player_handler, args = (games,)).start() #start the game_lobby's player handling
 threading.Thread(target = games[0].run).start() #start the main game loop
