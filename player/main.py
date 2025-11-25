@@ -143,6 +143,9 @@ while pygame.QUIT not in pygame.event.get():
 		player.dx += player.vx #move the player by velocity units every tick
 		player.dy += player.vy
 
+		player.dx = clamp(player.dx, 0, bounds_x)
+		player.dy = clamp(player.dy, 0, bounds_y)
+
 		for entity in game_objects: #render the other entities
 			render_entity(entity)
 		render_entity(player) #render the player
