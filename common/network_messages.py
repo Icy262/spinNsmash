@@ -9,6 +9,7 @@ class NetworkObjectTypes(enum.Enum): #register of network object types
 	join_game = 2
 	player_move = 3
 	client_update = 4
+	player_shoot = 5
 
 def get_type(as_binary):
 	"""
@@ -210,4 +211,24 @@ class ClientUpdate(NetworkObject):
 			else: print("game_object_data id not recognized", GameEntity.get_type(game_object_data))
 			self.game_objects.append(game_object_reconstructed) #append the reconstructed object to the list
 			position += 2 + game_object_len #we processed game_object_len bytes of data, so we should note this in our position
+		return self
+
+class PlayerShoot(NetworkObject):
+	"""
+	Used for a player to tell the server it shot
+	"""
+	def from_data(self, direction):
+		"""
+		Initializes a player_shoot network message. direction should be the angle of the shot from the vertical, where positive angles are clockwise and negative are counter-clockwise
+		"""
+		self.direction = direction
+		super().from_data(NetworkObjectTypes["player_shoot"].value, int(direction*1000).to_bytes(4, signed = True)) #calls the super init method. Passes the code for join game and a four byte representation of the direction. Mult by 1000 to preserve decimals
+		return self
+
+	def from_bytes(self, as_bytes):
+		"""
+		Initializes a PlayerShoot using the bytes representation
+		"""
+		super().from_bytes(as_bytes) #call the super to fill the size and type fields, and put the bytes representation of data into the data field
+		self.direction = int.from_bytes(self.data, "big", signed = True)/1000 #div by 1000 because we mult by 1000 for decimals
 		return self

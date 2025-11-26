@@ -2,9 +2,10 @@ import socket
 import threading
 import pygame
 from common.player_brief import PlayerBrief
-from common.network_messages import NetworkObjectTypes, GetGames, JoinGame, PlayerMove, ClientUpdate, get_type
+from common.network_messages import NetworkObjectTypes, GetGames, JoinGame, PlayerMove, ClientUpdate, get_type, PlayerShoot
 from common.network_connection import NetworkConnection
 from common.game_entities import GameEntity, PlayerEntity, BulletEntity
+import math
 
 def gen_background():
 	global background #make the background global so that it can be accessed everywhere
@@ -136,7 +137,10 @@ while pygame.QUIT not in pygame.event.get():
 			player.vy += 0.3
 		if keystate[pygame.K_d]:
 			player.vx += 0.3
+		if pygame.mouse.get_pressed()[0]: #if left click held down, shoot
+			server.send(PlayerShoot().from_data(math.atan2(pygame.mouse.get_pos()[0] - player.dx + clamp(player.dx - screen.get_size()[0]/2, 0, bounds_x - screen.get_size()[0]/2), pygame.mouse.get_pos()[1] - player.dy + clamp(player.dy - screen.get_size()[1]/2, 0, bounds_y - screen.get_size()[1]))).to_bytes()) #calc angle of line from player to mouse. clockwise from up. then send.
 
+		#tick the player
 		player.vx -= player.vx*0.05 #slowly slow down the player and limit top speed
 		player.vy -= player.vy*0.05 #same
 
@@ -145,6 +149,19 @@ while pygame.QUIT not in pygame.event.get():
 
 		player.dx = clamp(player.dx, 0, bounds_x)
 		player.dy = clamp(player.dy, 0, bounds_y)
+
+		#tick the other stuff
+		game_entities_to_remove = [] #for any entity that cross the map edge
+		for entity in game_objects:
+			entity.dx += entity.vx
+			entity.dy += entity.vy
+
+			#if entity crosses map edge, remove to save memory
+			if entity.dx < 0 or entity.dx > bounds_x: game_entities_to_remove.append(entity)
+			if entity.dy < 0 or entity.dy > bounds_y: game_entities_to_remove.append(entity)
+		for game_entity in game_entities_to_remove:
+			if game_entity in game_objects:
+				game_objects.remove(game_entity)
 
 		for entity in game_objects: #render the other entities
 			render_entity(entity)

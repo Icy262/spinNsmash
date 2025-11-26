@@ -1,9 +1,10 @@
 from server.player_container import PlayerContainer
 from common.network_connection import NetworkConnection
-from common.network_messages import get_type, NetworkObjectTypes, PlayerMove, ClientUpdate
-from common.game_entities import PlayerEntity
+from common.network_messages import get_type, NetworkObjectTypes, PlayerMove, ClientUpdate, PlayerShoot
+from common.game_entities import PlayerEntity, BulletEntity
 import pygame
 import random
+import math
 
 class Game(PlayerContainer):
 	def __init__(self, num_bots, size_x, size_y):
@@ -49,6 +50,12 @@ class Game(PlayerContainer):
 								player.player_entity.vx = movement.vx
 								player.player_entity.vy = movement.vy
 								player_updated = False #temp code until movement validation is implemented
+						elif get_type(message) == NetworkObjectTypes["player_shoot"].value: #if a player_shoot,
+							#TODO: implement shooting rate limit
+							#15 pixels per tick, so vT = 15
+							#10 px wide, so half the size of a player
+							message = PlayerShoot().from_bytes(message)
+							self.game_entities.append(BulletEntity().from_data(1, player.player_entity.dx, player.player_entity.dy, math.sin(message.direction)*15, math.cos(message.direction)*15, 10))
 						else: #unrecognized status code
 							print("ERROR: STATUS CODE NOT RECOGNIZED", get_type(message)) #TODO: replace with actual error handling
 					#send the player an updated game status with the player's player object first
@@ -61,4 +68,18 @@ class Game(PlayerContainer):
 						break
 			for player in players_to_remove:
 				self.connected_players.remove(player)
+
+			#tick the bullets
+			game_entities_to_remove = [] #for any bullets that cross the map edge
+			for bullet in self.game_entities:
+				bullet.dx += bullet.vx
+				bullet.dy += bullet.vy
+
+				#if bullet crosses map edge, remove to save memory
+				if bullet.dx < 0 or bullet.dx > self.size_x: game_entities_to_remove.append(bullet)
+				if bullet.dy < 0 or bullet.dy > self.size_y: game_entities_to_remove.append(bullet)
+			for game_entity in game_entities_to_remove:
+				if game_entity in self.game_entities:
+					self.game_entities.remove(game_entity)
+
 			clock.tick(60) #limit to 60 ticks per second. TODO: reduce to 20 on client and server while maintaining 60 fps on client
