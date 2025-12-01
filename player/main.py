@@ -7,7 +7,7 @@ from common.network_connection import NetworkConnection
 from common.game_entities import GameEntity, PlayerEntity, BulletEntity
 import math
 
-
+server_ip = input("Enter the server's ip address, or localhost: ")
 
 def gen_background():
 	global background #make the background global so that it can be accessed everywhere
@@ -75,7 +75,7 @@ while pygame.QUIT not in pygame.event.get():
 	#join game menu
 
 	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	server.connect(("127.0.0.1", 4004))
+	server.connect((server_ip, 4004))
 	server = NetworkConnection(server)
 	game_message = GetGames()
 	game_message.from_data()
