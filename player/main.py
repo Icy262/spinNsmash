@@ -7,6 +7,8 @@ from common.network_connection import NetworkConnection
 from common.game_entities import GameEntity, PlayerEntity, BulletEntity
 import math
 
+
+
 def gen_background():
 	global background #make the background global so that it can be accessed everywhere
 	width, height = screen.get_size() #get the size of the screen
@@ -44,14 +46,14 @@ def render_entity(entity):
 pygame.init()
 
 display_flags = pygame.RESIZABLE | pygame.DOUBLEBUF | pygame.HWSURFACE #flags to use when seting the display mode
-pygame.display.set_caption("spinNsmash")
+pygame.display.set_caption("Network Game Prototype")
 display_info = pygame.display.Info()
 screen = pygame.display.set_mode((display_info.current_w, display_info.current_h), display_flags) #create a monitor surface the size of the display, using the display flags
 clock = pygame.time.Clock()
 
 while pygame.QUIT not in pygame.event.get():
 	#main menu
-	title_text = pygame.font.SysFont("Arial", 120).render("spinNsmash", True, (255, 255, 0))
+	title_text = pygame.font.SysFont("Arial", 120).render("Network Game Prototype", True, (255, 255, 0))
 	start_prompt = pygame.font.SysFont("Arial", 72).render("press ENTER to start", True, (0, 255, 0))
 	screen.fill((0,0,0))
 	screen.blit(title_text, (display_info.current_w//2 - title_text.get_width()//2, display_info.current_h//3 - title_text.get_height()//2))
